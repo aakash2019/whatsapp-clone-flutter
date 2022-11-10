@@ -1,14 +1,21 @@
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:whatsapp_clone/custom_ui/own_message_card.dart';
+import 'package:whatsapp_clone/custom_ui/reply_card.dart';
 import 'package:whatsapp_clone/model/chat_model.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
+
+import '../model/message_model.dart';
 
 class IndividualChat extends StatefulWidget {
   const IndividualChat({
     super.key,
     required this.chatModel,
+    required this.sourceChat,
   });
   final ChatModel chatModel;
+  final ChatModel sourceChat;
 
   @override
   State<IndividualChat> createState() => _IndividualChatState();
@@ -17,11 +24,17 @@ class IndividualChat extends StatefulWidget {
 class _IndividualChatState extends State<IndividualChat> {
   bool show = false;
   FocusNode focusNode = FocusNode();
+  late IO.Socket socket;
+  bool sendButton = false;
+  List<MessageModel> messages = [];
+  ScrollController _scrollController = ScrollController();
+
   final TextEditingController _controller = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    connect();
     focusNode.addListener(() {
       if (focusNode.hasFocus) {
         setState(() {
@@ -31,231 +44,346 @@ class _IndividualChatState extends State<IndividualChat> {
     });
   }
 
+  void connect() {
+    socket = IO.io("http://192.168.1.7:5000", <String, dynamic>{
+      "transports": ["websocket"],
+      "autoConnect": false
+    });
+    socket.connect();
+    socket.emit(
+      "signin",
+      widget.sourceChat.id,
+    );
+    socket.onConnect((data) {
+      print("Connected");
+      socket.on('message', (msg) {
+        print(msg);
+        setMessage('destination', msg["message"]);
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      });
+    });
+    print(socket.connected);
+  }
+
+  void sendMessage(String message, int sourceId, int targetId) {
+    setMessage('source', message);
+    socket.emit('message', {
+      'message': message,
+      'sourceId': sourceId,
+      'targetId': targetId,
+    });
+  }
+
+  void setMessage(String type, String message) {
+    MessageModel messageModel = MessageModel(
+      type: type,
+      message: message,
+      time: DateTime.now().toString().substring(10, 16),
+    );
+    setState(() {
+      messages.add(messageModel);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.blueGrey,
-      appBar: AppBar(
-        leadingWidth: 70,
-        leading: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            InkWell(
-              onTap: () => Navigator.pop(context),
-              child: Icon(
-                Icons.arrow_back,
-                size: 24,
-              ),
-            ),
-            SizedBox(
-              width: 5,
-            ),
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: Colors.blueGrey,
-              child: SvgPicture.asset(
-                widget.chatModel.isGroup
-                    ? "assets/groups.svg"
-                    : "assets/person.svg",
-                color: Colors.white,
-                height: 37,
-                width: 37,
-              ),
-            ),
-          ],
+    return Stack(
+      children: [
+        Image.asset(
+          'assets/background.png',
+          height: MediaQuery.of(context).size.height,
+          width: MediaQuery.of(context).size.width,
+          fit: BoxFit.cover,
         ),
-        titleSpacing: 0,
-        title: InkWell(
-          onTap: () {},
-          child: Container(
-            margin: EdgeInsets.all(6),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              crossAxisAlignment: CrossAxisAlignment.start,
+        Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            leadingWidth: 70,
+            leading: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  widget.chatModel.name,
-                  style: TextStyle(
-                    fontSize: 18.5,
-                    fontWeight: FontWeight.bold,
+                InkWell(
+                  onTap: () => Navigator.pop(context),
+                  child: Icon(
+                    Icons.arrow_back,
+                    size: 24,
                   ),
                 ),
-                Text(
-                  'last seen today at 12:05',
-                  style: TextStyle(
-                    fontSize: 13,
+                SizedBox(
+                  width: 5,
+                ),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Colors.blueGrey,
+                  child: SvgPicture.asset(
+                    widget.chatModel.isGroup
+                        ? "assets/groups.svg"
+                        : "assets/person.svg",
+                    color: Colors.white,
+                    height: 37,
+                    width: 37,
                   ),
                 ),
               ],
             ),
-          ),
-        ),
-        actions: [
-          IconButton(
-            onPressed: () {},
-            icon: Icon(
-              Icons.videocam,
-            ),
-          ),
-          IconButton(
-            onPressed: () {},
-            icon: Icon(
-              Icons.call,
-            ),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              print(value);
-            },
-            itemBuilder: (BuildContext context) {
-              return [
-                PopupMenuItem(
-                  child: Text(
-                    "View Contact",
-                  ),
-                  value: "View Contact",
-                ),
-                PopupMenuItem(
-                  child: Text(
-                    "Media, links, and docs",
-                  ),
-                  value: "Media, links, and docs",
-                ),
-                PopupMenuItem(
-                  child: Text(
-                    "Search",
-                  ),
-                  value: "Search",
-                ),
-                PopupMenuItem(
-                  child: Text(
-                    "Mute Notifications",
-                  ),
-                  value: "Mute Notifications",
-                ),
-                PopupMenuItem(
-                  child: Text(
-                    "Wallpaper",
-                  ),
-                  value: "Wallpaper",
-                ),
-              ];
-            },
-          ),
-        ],
-      ),
-      body: Container(
-        height: MediaQuery.of(context).size.height,
-        width: MediaQuery.of(context).size.width,
-        child: WillPopScope(
-          child: Stack(
-            children: [
-              ListView(),
-              Align(
-                alignment: Alignment.bottomCenter,
+            titleSpacing: 0,
+            title: InkWell(
+              onTap: () {},
+              child: Container(
+                margin: EdgeInsets.all(6),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: MediaQuery.of(context).size.width - 55,
-                          child: Card(
-                            margin: EdgeInsets.only(
-                              left: 2,
-                              right: 2,
-                              bottom: 8,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(25),
-                            ),
-                            child: TextFormField(
-                              controller: _controller,
-                              focusNode: focusNode,
-                              textAlignVertical: TextAlignVertical.center,
-                              keyboardType: TextInputType.multiline,
-                              maxLines: 5,
-                              minLines: 1,
-                              decoration: InputDecoration(
-                                border: InputBorder.none,
-                                hintText: 'Type a message',
-                                prefixIcon: IconButton(
-                                  icon: Icon(Icons.emoji_emotions),
-                                  onPressed: () {
-                                    focusNode.unfocus();
-                                    focusNode.canRequestFocus = false;
-                                    setState(() {
-                                      show = !show;
-                                    });
-                                  },
-                                ),
-                                suffixIcon: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      onPressed: () {
-                                        showModalBottomSheet(
-                                          backgroundColor: Colors.transparent,
-                                          context: context,
-                                          builder: (builder) => bottomSheet(),
-                                        );
-                                      },
-                                      icon: Icon(Icons.attach_file),
-                                    ),
-                                    IconButton(
-                                      onPressed: () {},
-                                      icon: Icon(Icons.camera_alt),
-                                    ),
-                                  ],
-                                ),
-                                contentPadding: EdgeInsets.all(5),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            bottom: 8.0,
-                            right: 2.0,
-                            left: 2.0,
-                          ),
-                          child: CircleAvatar(
-                            backgroundColor: Color(0xFF128C7E),
-                            radius: 25,
-                            child: IconButton(
-                              icon: Icon(
-                                Icons.mic,
-                                color: Colors.white,
-                              ),
-                              onPressed: () {},
-                            ),
-                          ),
-                        ),
-                      ],
+                    Text(
+                      widget.chatModel.name,
+                      style: TextStyle(
+                        fontSize: 18.5,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    show
-                        ? Container(
-                            height: MediaQuery.of(context).size.height * 0.3,
-                            child: emojiSelect(),
-                          )
-                        : Container()
+                    Text(
+                      'last seen today at 12:05',
+                      style: TextStyle(
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
                 ),
               ),
+            ),
+            actions: [
+              IconButton(
+                onPressed: () {},
+                icon: Icon(
+                  Icons.videocam,
+                ),
+              ),
+              IconButton(
+                onPressed: () {},
+                icon: Icon(
+                  Icons.call,
+                ),
+              ),
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  print(value);
+                },
+                itemBuilder: (BuildContext context) {
+                  return [
+                    PopupMenuItem(
+                      child: Text(
+                        "View Contact",
+                      ),
+                      value: "View Contact",
+                    ),
+                    PopupMenuItem(
+                      child: Text(
+                        "Media, links, and docs",
+                      ),
+                      value: "Media, links, and docs",
+                    ),
+                    PopupMenuItem(
+                      child: Text(
+                        "Search",
+                      ),
+                      value: "Search",
+                    ),
+                    PopupMenuItem(
+                      child: Text(
+                        "Mute Notifications",
+                      ),
+                      value: "Mute Notifications",
+                    ),
+                    PopupMenuItem(
+                      child: Text(
+                        "Wallpaper",
+                      ),
+                      value: "Wallpaper",
+                    ),
+                  ];
+                },
+              ),
             ],
           ),
-          onWillPop: () {
-            if (show) {
-              setState(() {
-                show = false;
-              });
-            } else {
-              Navigator.pop(context);
-            }
-            return Future.value(false);
-          },
+          body: Container(
+            height: MediaQuery.of(context).size.height,
+            width: MediaQuery.of(context).size.width,
+            child: WillPopScope(
+              child: Column(
+                children: [
+                  Expanded(
+                    // height: MediaQuery.of(context).size.height - 140,
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      controller: _scrollController,
+                      itemCount: messages.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == messages.length) {
+                          return Container(
+                            height: 70,
+                          );
+                        }
+                        if (messages[index].type == 'source') {
+                          return OwnMessageCard(
+                            message: messages[index].message,
+                            time: messages[index].time,
+                          );
+                        } else {
+                          return ReplyCard(
+                            message: messages[index].message,
+                            time: messages[index].time,
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Container(
+                      height: 70,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: MediaQuery.of(context).size.width - 55,
+                                child: Card(
+                                  margin: EdgeInsets.only(
+                                    left: 2,
+                                    right: 2,
+                                    bottom: 8,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(25),
+                                  ),
+                                  child: TextFormField(
+                                    controller: _controller,
+                                    focusNode: focusNode,
+                                    textAlignVertical: TextAlignVertical.center,
+                                    keyboardType: TextInputType.multiline,
+                                    maxLines: 5,
+                                    minLines: 1,
+                                    onChanged: (value) {
+                                      if (value.length > 0) {
+                                        setState(() {
+                                          sendButton = true;
+                                        });
+                                      } else {
+                                        setState(() {
+                                          sendButton = false;
+                                        });
+                                      }
+                                    },
+                                    decoration: InputDecoration(
+                                      border: InputBorder.none,
+                                      hintText: 'Type a message',
+                                      prefixIcon: IconButton(
+                                        icon: Icon(Icons.emoji_emotions),
+                                        onPressed: () {
+                                          focusNode.unfocus();
+                                          focusNode.canRequestFocus = false;
+                                          setState(() {
+                                            show = !show;
+                                          });
+                                        },
+                                      ),
+                                      suffixIcon: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            onPressed: () {
+                                              showModalBottomSheet(
+                                                backgroundColor:
+                                                    Colors.transparent,
+                                                context: context,
+                                                builder: (builder) =>
+                                                    bottomSheet(),
+                                              );
+                                            },
+                                            icon: Icon(Icons.attach_file),
+                                          ),
+                                          IconButton(
+                                            onPressed: () {},
+                                            icon: Icon(Icons.camera_alt),
+                                          ),
+                                        ],
+                                      ),
+                                      contentPadding: EdgeInsets.all(5),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: 8.0,
+                                  right: 2.0,
+                                  left: 2.0,
+                                ),
+                                child: CircleAvatar(
+                                  backgroundColor: Color(0xFF128C7E),
+                                  radius: 25,
+                                  child: IconButton(
+                                    icon: Icon(
+                                      sendButton ? Icons.send : Icons.mic,
+                                      color: Colors.white,
+                                    ),
+                                    onPressed: () {
+                                      if (sendButton) {
+                                        _scrollController.animateTo(
+                                            _scrollController
+                                                .position.maxScrollExtent,
+                                            duration:
+                                                Duration(milliseconds: 300),
+                                            curve: Curves.easeOut);
+                                        sendMessage(
+                                          _controller.text,
+                                          widget.sourceChat.id,
+                                          widget.chatModel.id,
+                                        );
+                                        _controller.clear();
+                                        setState(() {
+                                          sendButton = false;
+                                        });
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          show
+                              ? Container(
+                                  height:
+                                      MediaQuery.of(context).size.height * 0.3,
+                                  child: emojiSelect(),
+                                )
+                              : Container()
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              onWillPop: () {
+                if (show) {
+                  setState(() {
+                    show = false;
+                  });
+                } else {
+                  Navigator.pop(context);
+                }
+                return Future.value(false);
+              },
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart';
@@ -19,10 +21,11 @@ class _CameraScreenState extends State<CameraScreen> {
   late Future<void> cameraValue;
   bool isRecording = false;
   String videoPath = "";
+  bool flash = false;
+  bool isCameraFront = true;
+  double transform = 0;
 
   void takePhoto(BuildContext context) async {
-    final imagePath =
-        join((await getTemporaryDirectory()).path, "${DateTime.now()}.png");
     XFile image = await _cameraController.takePicture();
     if (!mounted) return;
     await Navigator.push(
@@ -84,22 +87,25 @@ class _CameraScreenState extends State<CameraScreen> {
                     mainAxisSize: MainAxisSize.max,
                     children: [
                       IconButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          setState(() {
+                            flash = !flash;
+                          });
+                          flash
+                              ? _cameraController.setFlashMode(FlashMode.torch)
+                              : _cameraController.setFlashMode(FlashMode.off);
+                        },
                         icon: Icon(
-                          Icons.flash_off,
+                          flash ? Icons.flash_on : Icons.flash_off,
                           color: Colors.white,
                           size: 30,
                         ),
                       ),
                       GestureDetector(
                         onLongPress: () async {
-                          // final imagePath = join(
-                          //     (await getTemporaryDirectory()).path,
-                          //     "${DateTime.now()}.png");
                           _cameraController.startVideoRecording();
                           setState(() {
                             isRecording = true;
-                            // videoPath = imagePath;
                           });
                         },
                         onLongPressUp: () async {
@@ -108,7 +114,7 @@ class _CameraScreenState extends State<CameraScreen> {
                           final fileName = basename(video.path);
                           setState(() {
                             isRecording = false;
-                            videoPath = fileName;
+                            videoPath = video.path;
                           });
                           Navigator.push(
                             context,
@@ -135,11 +141,25 @@ class _CameraScreenState extends State<CameraScreen> {
                               ),
                       ),
                       IconButton(
-                        onPressed: () {},
-                        icon: Icon(
-                          Icons.flip_camera_ios,
-                          color: Colors.white,
-                          size: 30,
+                        onPressed: () async {
+                          setState(() {
+                            isCameraFront = !isCameraFront;
+                            transform = transform + pi;
+                            print(transform);
+                          });
+                          int cameraPos = isCameraFront ? 0 : 1;
+
+                          _cameraController = CameraController(
+                              cameras[cameraPos], ResolutionPreset.high);
+                          cameraValue = _cameraController.initialize();
+                        },
+                        icon: Transform.rotate(
+                          angle: transform,
+                          child: Icon(
+                            Icons.flip_camera_ios,
+                            color: Colors.white,
+                            size: 30,
+                          ),
                         ),
                       ),
                     ],

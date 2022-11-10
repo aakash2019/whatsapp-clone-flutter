@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:whatsapp_clone/model/chat_model.dart';
 import 'package:whatsapp_clone/pages/camera_page.dart';
 import 'package:whatsapp_clone/pages/chat_page.dart';
 import 'package:whatsapp_clone/screens/create_group.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({
+    super.key,
+    required this.chatModels,
+    required this.sourceChat,
+  });
+  final List<ChatModel> chatModels;
+  final ChatModel sourceChat;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -111,7 +118,10 @@ class _HomeScreenState extends State<HomeScreen>
         controller: _controller,
         children: [
           CameraPage(),
-          ChatPage(),
+          ChatPage(
+            chatModels: widget.chatModels,
+            sourceChat: widget.sourceChat,
+          ),
           Text('Staus'),
           Text('Calls'),
         ],
