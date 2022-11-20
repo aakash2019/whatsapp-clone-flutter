@@ -1,10 +1,16 @@
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:whatsapp_clone/custom_ui/own_file_card.dart';
 import 'package:whatsapp_clone/custom_ui/own_message_card.dart';
 import 'package:whatsapp_clone/custom_ui/reply_card.dart';
+import 'package:whatsapp_clone/custom_ui/reply_file_card.dart';
 import 'package:whatsapp_clone/model/chat_model.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:whatsapp_clone/screens/camera_screen.dart';
+import 'package:whatsapp_clone/screens/camera_view.dart';
+import 'package:http/http.dart' as http;
 
 import '../model/message_model.dart';
 
@@ -24,10 +30,12 @@ class IndividualChat extends StatefulWidget {
 class _IndividualChatState extends State<IndividualChat> {
   bool show = false;
   FocusNode focusNode = FocusNode();
-  late IO.Socket socket;
   bool sendButton = false;
   List<MessageModel> messages = [];
   ScrollController _scrollController = ScrollController();
+  late IO.Socket socket;
+  ImagePicker _picker = ImagePicker();
+  late XFile? file;
 
   final TextEditingController _controller = TextEditingController();
 
@@ -58,7 +66,11 @@ class _IndividualChatState extends State<IndividualChat> {
       print("Connected");
       socket.on('message', (msg) {
         print(msg);
-        setMessage('destination', msg["message"]);
+        setMessage(
+          'destination',
+          msg["message"],
+          msg['path'],
+        );
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
           duration: Duration(milliseconds: 300),
@@ -69,24 +81,45 @@ class _IndividualChatState extends State<IndividualChat> {
     print(socket.connected);
   }
 
-  void sendMessage(String message, int sourceId, int targetId) {
-    setMessage('source', message);
+  void sendMessage(
+    String message,
+    int sourceId,
+    int targetId,
+    String path,
+  ) {
+    setMessage('source', message, path);
     socket.emit('message', {
       'message': message,
       'sourceId': sourceId,
       'targetId': targetId,
+      'path': path,
     });
   }
 
-  void setMessage(String type, String message) {
+  void setMessage(String type, String message, String path) {
     MessageModel messageModel = MessageModel(
       type: type,
       message: message,
       time: DateTime.now().toString().substring(10, 16),
+      path: path,
     );
     setState(() {
       messages.add(messageModel);
     });
+  }
+
+  void onImageSend(String path, String message) async {
+    print(path);
+    var request = http.MultipartRequest(
+        'POST', Uri.parse("http://192.168.1.7:5000/routes/addImage"));
+    request.files.add(
+      await http.MultipartFile.fromPath("img", path),
+    );
+    request.headers.addAll({
+      "Content-type": "multipart/form-data",
+    });
+    http.StreamedResponse response = await request.send();
+    print(response.statusCode);
   }
 
   @override
@@ -309,7 +342,17 @@ class _IndividualChatState extends State<IndividualChat> {
                                             icon: Icon(Icons.attach_file),
                                           ),
                                           IconButton(
-                                            onPressed: () {},
+                                            onPressed: () {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (builder) =>
+                                                      CameraScreen(
+                                                          onImageSend:
+                                                              onImageSend),
+                                                ),
+                                              );
+                                            },
                                             icon: Icon(Icons.camera_alt),
                                           ),
                                         ],
@@ -336,16 +379,16 @@ class _IndividualChatState extends State<IndividualChat> {
                                     onPressed: () {
                                       if (sendButton) {
                                         _scrollController.animateTo(
-                                            _scrollController
-                                                .position.maxScrollExtent,
-                                            duration:
-                                                Duration(milliseconds: 300),
-                                            curve: Curves.easeOut);
-                                        sendMessage(
-                                          _controller.text,
-                                          widget.sourceChat.id,
-                                          widget.chatModel.id,
+                                          _scrollController
+                                              .position.maxScrollExtent,
+                                          duration: Duration(milliseconds: 300),
+                                          curve: Curves.easeOut,
                                         );
+                                        sendMessage(
+                                            _controller.text,
+                                            widget.sourceChat.id,
+                                            widget.chatModel.id,
+                                            "");
                                         _controller.clear();
                                         setState(() {
                                           sendButton = false;
@@ -404,6 +447,7 @@ class _IndividualChatState extends State<IndividualChat> {
                     Icons.insert_drive_file,
                     Colors.indigo,
                     "Document",
+                    () {},
                   ),
                   SizedBox(
                     width: 40,
@@ -412,6 +456,16 @@ class _IndividualChatState extends State<IndividualChat> {
                     Icons.camera_alt,
                     Colors.pink,
                     "Camera",
+                    () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (builder) => CameraScreen(
+                            onImageSend: onImageSend,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   SizedBox(
                     width: 40,
@@ -420,6 +474,19 @@ class _IndividualChatState extends State<IndividualChat> {
                     Icons.insert_photo,
                     Colors.purple,
                     "Gallery",
+                    () async {
+                      file =
+                          await _picker.pickImage(source: ImageSource.gallery);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (builder) => CameraView(
+                            path: file!.path,
+                            onImageSend: onImageSend,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
@@ -433,6 +500,7 @@ class _IndividualChatState extends State<IndividualChat> {
                     Icons.headset,
                     Colors.orange,
                     "Audio",
+                    () {},
                   ),
                   SizedBox(
                     width: 40,
@@ -441,6 +509,7 @@ class _IndividualChatState extends State<IndividualChat> {
                     Icons.location_pin,
                     Color.fromARGB(255, 5, 112, 23),
                     "Location",
+                    () {},
                   ),
                   SizedBox(
                     width: 40,
@@ -449,6 +518,7 @@ class _IndividualChatState extends State<IndividualChat> {
                     Icons.person,
                     Colors.blue,
                     "Contact",
+                    () {},
                   ),
                 ],
               ),
@@ -459,10 +529,10 @@ class _IndividualChatState extends State<IndividualChat> {
     );
   }
 
-  Widget iconCreation(IconData icon, Color color, String text) {
+  Widget iconCreation(IconData icon, Color color, String text, Function onTap) {
     return InkWell(
       onTap: () {
-        print(text);
+        onTap;
       },
       child: Column(
         children: [

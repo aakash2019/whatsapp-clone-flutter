@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:whatsapp_clone/model/chat_model.dart';
 import 'package:whatsapp_clone/pages/camera_page.dart';
 import 'package:whatsapp_clone/pages/chat_page.dart';
+import 'package:whatsapp_clone/pages/status_page.dart';
 import 'package:whatsapp_clone/screens/create_group.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -122,7 +123,7 @@ class _HomeScreenState extends State<HomeScreen>
             chatModels: widget.chatModels,
             sourceChat: widget.sourceChat,
           ),
-          Text('Staus'),
+          StatusPage(),
           Text('Calls'),
         ],
       ),

@@ -6,9 +6,12 @@ class CameraView extends StatelessWidget {
   const CameraView({
     super.key,
     required this.path,
+    required this.onImageSend,
   });
 
   final String path;
+  final Function onImageSend;
+  static TextEditingController _controller = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -69,6 +72,7 @@ class CameraView extends StatelessWidget {
                   vertical: 5,
                 ),
                 child: TextFormField(
+                  controller: _controller,
                   minLines: 1,
                   maxLines: 6,
                   style: TextStyle(
@@ -82,13 +86,21 @@ class CameraView extends StatelessWidget {
                       size: 27,
                       color: Colors.white,
                     ),
-                    suffixIcon: CircleAvatar(
-                      backgroundColor: Colors.tealAccent[700],
-                      radius: 27,
-                      child: Icon(
-                        Icons.check,
-                        color: Colors.white,
-                        size: 27,
+                    suffixIcon: InkWell(
+                      onTap: () {
+                        onImageSend(
+                          path,
+                          _controller.text.trim(),
+                        );
+                      },
+                      child: CircleAvatar(
+                        backgroundColor: Colors.tealAccent[700],
+                        radius: 27,
+                        child: Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 27,
+                        ),
                       ),
                     ),
                     hintText: "Add caption.....",
